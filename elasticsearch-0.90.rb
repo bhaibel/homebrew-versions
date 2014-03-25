@@ -1,15 +1,27 @@
 require 'formula'
 
-class Elasticsearch020 < Formula
+class Elasticsearch090 < Formula
   homepage 'http://www.elasticsearch.org'
-  url 'http://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-0.90.11.tar.gz'
-  sha1 'f66a778ad94ea1dd69d18f8f89ce32c2383898eb'
+  url 'https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-0.90.11.tar.gz'
+  sha1 'af86b1165f7a40bd90c17cfd2f92f5ebf2a45d32'
+
+  head do
+    url 'https://github.com/elasticsearch/elasticsearch.git'
+    depends_on 'maven'
+  end
 
   def cluster_name
     "elasticsearch_#{ENV['USER']}"
   end
 
   def install
+    if build.head?
+      # Build the package from source
+      system "mvn clean package -DskipTests"
+      # Extract the package to the current directory
+      system "tar --strip 1 -xzf target/releases/elasticsearch-*.tar.gz"
+    end
+
     # Remove Windows files
     rm_f Dir["bin/*.bat"]
 
@@ -22,6 +34,11 @@ class Elasticsearch020 < Formula
 
     # Remove unnecessary files
     rm_f Dir["#{lib}/sigar/*"]
+    if build.head?
+      rm_rf "#{prefix}/pom.xml"
+      rm_rf "#{prefix}/src/"
+      rm_rf "#{prefix}/target/"
+    end
 
     # Set up ElasticSearch for local development:
     inreplace "#{prefix}/config/elasticsearch.yml" do |s|
@@ -50,6 +67,13 @@ class Elasticsearch020 < Formula
       # Replace paths to use libexec instead of lib
       s.gsub! /\$ES_HOME\/lib\//, "$ES_CLASSPATH/"
     end
+  end
+
+  def post_install
+    # Make sure runtime directories exist
+    (var/"elasticsearch/#{cluster_name}").mkpath
+    (var/"log/elasticsearch").mkpath
+    (var/"lib/elasticsearch/plugins").mkpath
   end
 
   def caveats; <<-EOS.undent
